@@ -25,10 +25,11 @@ Item {
   id: root
 
   // ── Configuration ────────────────────────────────────────────────────
-  // Absolute path works too, e.g. "/usr/bin/voxtype".
-  property string voxtypeBin: "voxtype"
   // How long the "done" confirmation stays on screen (ms).
   property int doneDuration: 700
+  // Path/name of the voxtype binary — only used if you disable the wrapper
+  // below and call voxtype directly.
+  property string voxtypeBin: "voxtype"
 
   // ── State: idle | recording | transcribing | done ────────────────────
   property string mode: "idle"
@@ -46,7 +47,9 @@ Item {
     }
     if (!payload)
       return
-    var state = String(payload["class"] || "").toLowerCase()
+    // voxtype emits both `alt` (Waybar-style) and `class`. Omarchy's own
+    // Dictation indicator reads `alt` first, so we mirror that.
+    var state = String(payload["alt"] || payload["class"] || "").toLowerCase()
     if (state === "" && payload.tooltip)
       state = String(payload.tooltip).toLowerCase().replace("voxtype:", "").trim()
     applyState(state)
@@ -71,9 +74,12 @@ Item {
   }
 
   // ── voxtype status stream ────────────────────────────────────────────
+  // Reuse Omarchy's own wrapper. It handles a missing voxtype, and it wraps
+  // `voxtype status --follow` in `setpriv --pdeathsig TERM` so the follower
+  // dies with the shell instead of being orphaned when the shell restarts.
   Process {
     id: statusStream
-    command: [root.voxtypeBin, "status", "--follow", "--format", "json"]
+    command: ["bash", "-c", "omarchy-voxtype-status"]
     running: true
     stdout: SplitParser {
       onRead: function (line) {
