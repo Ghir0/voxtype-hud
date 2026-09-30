@@ -3,7 +3,7 @@
 // Watches `voxtype status --follow --format json` and reflects the dictation
 // state in a small floating card near the bottom of the screen:
 //
-//   recording     -> pulsing dot + animated level bars
+//   recording     -> live input-level waveform (real, not decorative)
 //   transcribing  -> animated "processing" indicator (the point of this plugin)
 //   stopped/idle  -> a brief "done" flash, then the HUD hides itself
 //
@@ -27,13 +27,18 @@ Item {
   // ── Configuration ────────────────────────────────────────────────────
   // How long the "done" confirmation stays on screen (ms).
   property int doneDuration: 700
-  // Path/name of the voxtype binary — only used if you disable the wrapper
-  // below and call voxtype directly.
-  property string voxtypeBin: "voxtype"
+
+  // Path to the level helper shipped next to this file. Resolved relative to
+  // the plugin directory, so it keeps working wherever Omarchy installs it.
+  readonly property string levelHelper: String(Qt.resolvedUrl("hud-levels.py")).replace("file://", "")
 
   // ── State: idle | recording | transcribing | done ────────────────────
   property string mode: "idle"
   property bool hudVisible: false
+
+  // Rolling history of input levels (0..1), oldest first. Rendered as a
+  // scrolling waveform, so the bars show real time-and-amplitude, like Yapper.
+  property var levels: []
 
   function handleLine(line) {
     var text = String(line || "").trim()
@@ -69,8 +74,29 @@ Item {
   function enter(next) {
     root.mode = next
     root.hudVisible = (next !== "idle")
+    if (next === "recording")
+      root.resetLevels()
     if (next === "done")
       doneTimer.restart()
+  }
+
+  // ── Input level ──────────────────────────────────────────────────────
+  function resetLevels() {
+    var zeros = []
+    for (var i = 0; i < root.barCount; i++)
+      zeros.push(0)
+    root.levels = zeros
+  }
+
+  function pushLevel(line) {
+    var v = parseFloat(line)
+    if (isNaN(v))
+      return
+    var next = root.levels.length === root.barCount ? root.levels.slice(1) : root.levels.slice()
+    next.push(v)
+    while (next.length < root.barCount)
+      next.unshift(0)
+    root.levels = next
   }
 
   // ── voxtype status stream ────────────────────────────────────────────
@@ -93,6 +119,24 @@ Item {
     }
   }
 
+  // Real microphone levels, only while recording — reading the mic when idle
+  // would be both pointless and impolite. The low latency window keeps the
+  // meter responsive instead of lagging a second behind the voice.
+  Process {
+    id: levelStream
+    running: root.mode === "recording"
+    command: ["bash", "-c", "parec --raw --format=s16le --rate=16000 --channels=1 --latency-msec=40 | python3 " + root.levelHelper]
+    stdout: SplitParser {
+      onRead: function (line) {
+        root.pushLevel(line)
+      }
+    }
+    onRunningChanged: {
+      if (!running)
+        root.resetLevels()
+    }
+  }
+
   Timer {
     id: reviveTimer
     interval: 2000
@@ -109,13 +153,32 @@ Item {
   }
 
   // ── Theme + metrics (mirrors omarchy.osd) ────────────────────────────
-  readonly property int pad: Style.space(14)
-  readonly property int gap: Style.space(12)
-  readonly property int dotSize: Style.space(9)
-  readonly property int barThickness: Style.space(4)
-  readonly property int barsHeight: Style.space(20)
+  // Asymmetric padding reads better in a pill: a touch more on the sides than
+  // top/bottom. Everything derives from `padX`/`padY` so there is one place to
+  // tune the card.
+  readonly property int padX: Style.space(16)
+  readonly property int padY: Style.space(11)
+  readonly property int gap: Style.space(11)
+
+  // Animation timings. Note: `Style` has no duration helper — the first-party
+  // plugins use plain millisecond literals, so these stay tunable here.
+  readonly property int fadeDuration: 160
+  readonly property int meterSmoothing: 90
+
+  readonly property int dotSize: Style.space(8)
+  readonly property int dotSpacing: Style.space(6)
+
+  readonly property int barCount: 9
+  readonly property int barThickness: Style.space(3)
+  readonly property int barSpacing: Style.space(3)
+  readonly property int barsHeight: Style.space(18)
+  readonly property int waveWidth: root.barCount * root.barThickness + (root.barCount - 1) * root.barSpacing
+  // Fixed indicator width: the label must not shift when the state changes.
+  readonly property int indicatorWidth: Math.max(root.waveWidth, 3 * root.dotSize + 2 * root.dotSpacing)
+
   readonly property color cardColor: Util.alpha(Color.background, 0.97)
   readonly property color textColor: Color.popups.text
+  readonly property color meterColor: Color.accent
   readonly property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
 
   readonly property string labelText: {
@@ -155,73 +218,45 @@ Item {
       color: root.cardColor
       borderSpec: root.borderSpec
 
-      width: card.borderLeft + root.pad + row.implicitWidth + root.pad + card.borderRight
-      height: card.borderTop + root.pad + row.implicitHeight + root.pad + card.borderBottom
+      width: card.borderLeft + root.padX + row.implicitWidth + root.padX + card.borderRight
+      height: card.borderTop + root.padY + row.implicitHeight + root.padY + card.borderBottom
 
       // Fade the whole card in and out.
       opacity: root.hudVisible ? 1 : 0
       Behavior on opacity {
-        NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
+        NumberAnimation { duration: root.fadeDuration; easing.type: Easing.OutCubic }
       }
 
       Row {
         id: row
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: card.borderTop + root.pad
-        anchors.leftMargin: card.borderLeft + root.pad
+        anchors.topMargin: card.borderTop + root.padY
+        anchors.leftMargin: card.borderLeft + root.padX
         spacing: root.gap
 
-        // ── Indicator ──────────────────────────────────────────────────
+        // ── Indicator (fixed width, so the label never jitters) ────────
         Item {
-          width: Math.max(root.dotSize, root.barsHeight)
-          height: root.barsHeight
-          anchors.verticalCenter: parent.verticalCenter
+          width: root.indicatorWidth
+          height: Math.max(root.barsHeight, root.dotSize)
 
-          // Recording: a pulsing dot.
-          Rectangle {
-            visible: root.mode === "recording"
-            width: root.dotSize
-            height: root.dotSize
-            radius: width / 2
-            color: Color.accent
-            anchors.centerIn: parent
-            SequentialAnimation on opacity {
-              running: root.mode === "recording"
-              loops: Animation.Infinite
-              NumberAnimation { to: 0.25; duration: 520; easing.type: Easing.InOutSine }
-              NumberAnimation { to: 1.0; duration: 520; easing.type: Easing.InOutSine }
-            }
-          }
-
-          // Recording: five stylised level bars. Decorative, NOT a real input
-          // meter — voxtype's status stream does not expose audio levels.
+          // Recording: live input-level waveform. Each bar is one measurement
+          // from ~40 ms ago, so the whole strip scrolls like a real meter.
           Row {
             visible: root.mode === "recording"
             anchors.centerIn: parent
-            spacing: root.barThickness
+            spacing: root.barSpacing
             Repeater {
-              model: 5
+              model: root.barCount
               Rectangle {
                 required property int index
                 width: root.barThickness
                 radius: width / 2
-                color: root.textColor
+                color: root.meterColor
                 anchors.verticalCenter: parent.verticalCenter
-                height: root.barsHeight * 0.25
-                SequentialAnimation on height {
-                  running: root.mode === "recording"
-                  loops: Animation.Infinite
-                  NumberAnimation {
-                    to: root.barsHeight
-                    duration: 300 + index * 70
-                    easing.type: Easing.InOutSine
-                  }
-                  NumberAnimation {
-                    to: root.barsHeight * 0.25
-                    duration: 300 + (4 - index) * 70
-                    easing.type: Easing.InOutSine
-                  }
+                height: Math.max(root.barThickness, root.barsHeight * (root.levels[index] || 0))
+                Behavior on height {
+                  NumberAnimation { duration: root.meterSmoothing; easing.type: Easing.OutQuad }
                 }
               }
             }
@@ -231,7 +266,7 @@ Item {
           Row {
             visible: root.mode === "transcribing"
             anchors.centerIn: parent
-            spacing: root.barThickness * 2
+            spacing: root.dotSpacing
             Repeater {
               model: 3
               Rectangle {
@@ -267,7 +302,7 @@ Item {
             width: root.dotSize
             height: root.dotSize
             radius: width / 2
-            color: Color.accent
+            color: root.meterColor
             anchors.centerIn: parent
           }
         }
