@@ -29,9 +29,6 @@ Item {
   property string voxtypeBin: "voxtype"
   // How long the "done" confirmation stays on screen (ms).
   property int doneDuration: 700
-  // Minimum time the processing indicator stays up, so a fast transcription
-  // does not flash for 80 ms and look like a glitch (ms).
-  property int minProcessingDuration: 500
 
   // ── State: idle | recording | transcribing | done ────────────────────
   property string mode: "idle"
@@ -67,8 +64,6 @@ Item {
   }
 
   function enter(next) {
-    if (next === "transcribing")
-      processingFloor.restart()
     root.mode = next
     root.hudVisible = (next !== "idle")
     if (next === "done")
@@ -105,14 +100,6 @@ Item {
     id: doneTimer
     interval: root.doneDuration
     onTriggered: root.enter("idle")
-  }
-
-  Timer {
-    id: processingFloor
-    interval: root.minProcessingDuration
-    // Nothing to do on trigger: the floor only guards the transcribing state,
-    // which voxtype ends on its own. Kept as a live timer so the state and the
-    // animation stay in sync when the duration is tuned.
   }
 
   // ── Theme + metrics (mirrors omarchy.osd) ────────────────────────────
