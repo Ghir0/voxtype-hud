@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.ghir0.voxtype-hud",
+  "name": "Voxtype HUD",
+  "version": "1.0.0",
+  "author": "Michael Tamanti",
+  "license": "MIT",
+  "description": "Floating HUD for Voxtype dictation: a pulsing recording indicator and an animated processing state while the transcript is being transcribed.",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Overlay.qml"
+  }
+}
