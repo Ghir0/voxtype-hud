@@ -128,13 +128,23 @@ Item {
     return ""
   }
 
-  OverlayWindow {
+  // PanelWindow (Quickshell built-in) instead of the shell's OverlayWindow:
+  // third-party plugins get a limited interface, and `OverlayWindow` is not
+  // exposed to them ("OverlayWindow is not a type"). This mirrors the pattern
+  // used by the first-party notifications service.
+  PanelWindow {
     id: panel
-    shown: root.hudVisible
-    // Purely visual surface: never take keyboard focus, never eat clicks.
-    shownKeyboardFocus: WlrKeyboardFocus.None
+    visible: root.hudVisible
+    anchors { bottom: true; left: true; right: true }
+    implicitHeight: card.height + Style.space(67)
+    color: "transparent"
     WlrLayershell.namespace: "voxtype-hud"
-    mask: Region {}
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Ignore
+    // Keep the input region to the card only, so the rest of the strip is
+    // click-through.
+    mask: Region { item: card }
 
     BorderSurface {
       id: card

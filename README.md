@@ -61,12 +61,22 @@ The card's position is `anchors.bottomMargin: Style.space(67)` inside
 
 ## Notes and limitations
 
+- Third-party plugins run against a **limited interface**: the shell's
+  `OverlayWindow` type is *not* available to them (`OverlayWindow is not a
+  type`). This plugin uses Quickshell's own `PanelWindow` instead — the same
+  pattern as the first-party notifications service.
+- The plugin declares `kinds: ["panel"]` + `keepLoaded: true`, which is what
+  makes the shell mount it **at shell start**. An `overlay` kind is only
+  loaded on first summon, so a status watcher living inside one would never
+  run. After adding the plugin, restart the shell (`omarchy-restart-shell`).
 - The level bars during recording are a **decorative animation**, not a real
-  input meter: Voxtype's `status` stream does not expose audio levels.
-- The HUD renders on a single overlay surface. Multi-monitor placement is not
+  input meter: Voxtype's `status` stream does not expose audio levels. (The
+  stock GTK4 OSD does draw a real waveform.)
+- The HUD renders on a single panel surface. Multi-monitor placement is not
   handled yet.
-- Developed against the documented Voxtype `status --follow --format json`
-  contract (`{"text": ..., "tooltip": ..., "class": "idle|recording|transcribing|stopped"}`).
+- Built against the Omarchy wrapper `omarchy-voxtype-status` and the
+  documented `voxtype status --follow --format json` contract
+  (`{"alt": ..., "class": "idle|recording|transcribing|stopped", ...}`).
 
 ## Remove
 
