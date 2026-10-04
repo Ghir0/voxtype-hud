@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.ghir0.voxtype-hud",
   "name": "Voxtype Bubble",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "author": "Michael Tamanti",
   "license": "MIT",
-  "description": "Pixel-sprite Voxtype dictation bubble for Omarchy: click to record, stop or cancel with on-bubble buttons, live input-level waveform while speaking and an animated processing state while transcribing. Drag it to snap to a screen edge or corner, where it collapses to a small accent dot and peeks back out on approach.",
+  "description": "Pixel-sprite Voxtype dictation bubble for Omarchy with a satellite translation toggle, animated sprites, live waveform, and on-bubble recording controls.",
   "kinds": [
     "panel"
   ],

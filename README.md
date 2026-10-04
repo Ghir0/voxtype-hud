@@ -16,8 +16,11 @@ status stream:
 | `stopped`      | a brief confirmation flash, then back to idle             |
 
 Unlike a pure HUD it is bidirectional: the bubble runs
-`voxtype record start/stop`. The Hyprland push-to-talk hotkey still works
-alongside it.
+`voxtype record start/stop`. A small satellite button toggles Voxtype's built-in
+translation mode. When enabled, Voxtype translates speech into English; the
+source language remains whatever is configured in Voxtype. The sprite switches
+to a separate animation row and stays visible beside the recording controls.
+The Hyprland push-to-talk hotkey still works alongside it.
 
 ## Requirements
 
@@ -66,6 +69,12 @@ Prefer a tap-to-toggle over hold-to-talk? Swap both dispatchers for
   stop and transcribe.
 - **Click the cancel button** while recording to discard it without
   transcribing (`voxtype record cancel`).
+- **Click the small `EN` satellite** while idle to toggle translation. It uses
+  Voxtype's `whisper.translate` setting and restarts the Voxtype user service
+  when changing modes; wait for the satellite to finish loading before starting
+  a recording. The button initially reflects Voxtype's current setting
+  (translation is off in Voxtype's default config). With translation on, the
+  animated sprite uses a different sheet row and remains beside the controls.
 - **Drag the bubble** anywhere on screen. On release it **snaps to the nearest
   screen edge or corner**. The dock is saved to
   `~/.local/state/voxtype-hud/position` and restored at the next shell start
@@ -120,7 +129,7 @@ All knobs are `readonly property` values at the top of `Panel.qml`:
 | `peek`                | `16`    | Pixels left visible when hidden                  |
 | `spriteSize`          | `32`    | Drawn avatar size (source frame is 32x32)        |
 | `spriteFrameDuration` | `130`   | Avatar frame duration (ms)                       |
-| `idleRow`             | `0`     | Which sprite-sheet row plays while idle          |
+| `idleRow`             | `0`     | Sprite-sheet row used when translation is off    |
 | `padX`                | `14`    | Pill padding, horizontal                         |
 | `gap`                 | `12`    | Space between indicator and stop button          |
 | `barCount`            | `9`     | Waveform bars (≈40 ms of audio each)             |

@@ -62,10 +62,26 @@ Item {
   // Path to the level helper shipped next to this file. Resolved relative to
   // the plugin directory, so it keeps working wherever Omarchy installs it.
   readonly property string levelHelper: String(Qt.resolvedUrl("hud-levels.py")).replace("file://", "")
+  readonly property string translationHelper: String(Qt.resolvedUrl("hud-translation.py")).replace("file://", "")
 
   // ── State: idle | recording | transcribing | done ────────────────────
   property string mode: "idle"
   property var levels: []
+  property bool translationEnabled: false
+  property bool translationLoading: true
+  property bool translationBusy: false
+  property string translationError: ""
+
+  function applyTranslationResult(output) {
+    try {
+      var result = JSON.parse(String(output || "{}"))
+      root.translationEnabled = result.enabled === true
+      root.translationError = ""
+    } catch (e) {
+      root.translationError = "Invalid Voxtype translation setting"
+    }
+    root.translationLoading = false
+  }
 
   // ── Docking ──────────────────────────────────────────────────────────
   // Each axis can be docked (`dockX`/`dockY`) to the left/right and top/bottom
@@ -110,6 +126,50 @@ Item {
   Process { id: stopProc; command: ["voxtype", "record", "stop"] }
   Process { id: cancelProc; command: ["voxtype", "record", "cancel"] }
 
+  Process {
+    id: readTranslationProc
+    command: ["python3", root.translationHelper, "get"]
+    running: true
+    stdout: StdioCollector { id: readTranslationStdout; waitForEnd: true }
+    stderr: StdioCollector { id: readTranslationStderr; waitForEnd: true }
+    onExited: function (exitCode) {
+      if (exitCode === 0)
+        root.applyTranslationResult(readTranslationStdout.text)
+      else {
+        root.translationLoading = false
+        root.translationError = String(readTranslationStderr.text || "Cannot read Voxtype translation setting").trim()
+      }
+    }
+  }
+
+  Process {
+    id: writeTranslationProc
+    stdout: StdioCollector { id: writeTranslationStdout; waitForEnd: true }
+    stderr: StdioCollector { id: writeTranslationStderr; waitForEnd: true }
+    onExited: function (exitCode) {
+      root.translationBusy = false
+      if (exitCode === 0)
+        root.applyTranslationResult(writeTranslationStdout.text)
+      else
+        root.translationError = String(writeTranslationStderr.text || "Could not update Voxtype translation").trim()
+    }
+  }
+
+  function toggleTranslation() {
+    if (root.translationLoading || root.translationBusy
+        || (root.mode !== "idle" && root.mode !== "done"))
+      return
+    if (root.translationError !== "") {
+      root.translationError = ""
+      root.translationLoading = true
+      readTranslationProc.running = true
+      return
+    }
+    root.translationBusy = true
+    writeTranslationProc.command = ["python3", root.translationHelper, "set", root.translationEnabled ? "false" : "true"]
+    writeTranslationProc.running = true
+  }
+
   function startRecording() {
     startProc.startDetached()
   }
@@ -123,6 +183,8 @@ Item {
   }
 
   function onBubbleClick() {
+    if (root.translationBusy || root.translationLoading)
+      return
     if (root.mode === "recording")
       root.stopRecording()
     else if (root.mode === "idle" || root.mode === "done")
@@ -276,7 +338,7 @@ Item {
   // ── Avatar animation ─────────────────────────────────────────────────
   Timer {
     id: avatarTimer
-    running: root.mode === "idle" || root.mode === "done"
+    running: true
     interval: root.spriteFrameDuration
     repeat: true
     onTriggered: root.avatarFrame = (root.avatarFrame + 1) % root.spriteFrameCount
@@ -433,6 +495,8 @@ Item {
   readonly property int buttonGap: Style.space(8)
   // Diameter of the accent dot left on screen when the bubble is hidden.
   readonly property int peekDotSize: Style.space(10)
+  readonly property int translationOrbSize: Style.space(24)
+  readonly property int translationOrbOverlap: Style.space(7)
 
   // Fixed indicator width, so the pill does not shift between states.
   readonly property int indicatorWidth: Math.max(root.waveWidth, 3 * root.dotSize + 2 * root.dotSpacing)
@@ -440,10 +504,15 @@ Item {
   // Idle is a circle; active states grow into a pill. `Row` skips invisible
   // children, so transcribing (no stop button) is narrower than recording.
   readonly property int activeWidth: root.padX + root.indicatorWidth
-    + (root.mode === "recording" ? root.gap + root.stopSize + root.buttonGap + root.stopSize : 0)
-    + root.padX
-  readonly property int bubbleWidth: (root.mode === "idle" || root.mode === "done")
+    + (root.mode === "recording"
+      ? 2 * root.gap + root.stopSize + root.buttonGap + root.stopSize
+      : root.gap)
+    + root.spriteSize + root.padX
+  readonly property int mainBubbleWidth: (root.mode === "idle" || root.mode === "done")
     ? root.bubbleHeight : root.activeWidth
+  readonly property bool translationOrbVisible: root.mode === "idle" || root.mode === "done"
+  readonly property int bubbleWidth: root.mainBubbleWidth
+    + (root.translationOrbVisible ? root.translationOrbSize - root.translationOrbOverlap : 0)
 
   // The bubble grows from its docked edge when the state changes.
   onBubbleWidthChanged: {
@@ -595,7 +664,8 @@ Item {
       }
 
       BorderSurface {
-        anchors.fill: parent
+        width: root.mainBubbleWidth
+        height: root.bubbleHeight
         radius: height / 2
         color: root.cardColor
         borderSpec: root.borderSpec
@@ -605,14 +675,15 @@ Item {
       Image {
         id: avatarSprite
         visible: root.mode === "idle" || root.mode === "done"
-        anchors.centerIn: parent
+        x: (root.mainBubbleWidth - width) / 2
+        y: (parent.height - height) / 2
         width: root.spriteSize
         height: root.spriteSize
         source: root.spriteSheet
         smooth: false
         sourceClipRect: Qt.rect(
           root.avatarFrame * root.spriteFrameWidth,
-          root.idleRow * root.spriteFrameHeight,
+          (root.translationEnabled ? 2 : root.idleRow) * root.spriteFrameHeight,
           root.spriteFrameWidth,
           root.spriteFrameHeight
         )
@@ -773,6 +844,58 @@ Item {
                 root.stopRecording()
               }
             }
+          }
+        }
+
+        // Sprite beside the action controls while recording/transcribing.
+        Image {
+          width: root.spriteSize
+          height: root.spriteSize
+          source: root.spriteSheet
+          smooth: false
+          sourceClipRect: Qt.rect(
+            root.avatarFrame * root.spriteFrameWidth,
+            (root.translationEnabled ? 2 : root.idleRow) * root.spriteFrameHeight,
+            root.spriteFrameWidth,
+            root.spriteFrameHeight
+          )
+        }
+      }
+
+      // Translation-mode satellite, attached to the main bubble.
+      Item {
+        id: translationOrb
+        visible: root.translationOrbVisible && !root.hidden
+        x: root.mainBubbleWidth - root.translationOrbOverlap
+        y: (root.bubbleHeight - height) / 2
+        width: root.translationOrbSize
+        height: root.translationOrbSize
+        opacity: bubble.opacity
+
+        Rectangle {
+          anchors.fill: parent
+          radius: width / 2
+          color: root.translationEnabled ? root.meterColor : root.cardColor
+          border.color: root.translationEnabled ? root.meterColor : Util.alpha(root.textColor, 0.65)
+          border.width: Math.max(1, Style.space(1))
+        }
+
+        Text {
+          anchors.centerIn: parent
+          text: root.translationBusy ? "…" : root.translationError !== "" ? "!" : "EN"
+          color: root.translationEnabled ? root.cardColor : root.textColor
+          font.family: "sans-serif"
+          font.pixelSize: Style.space(9)
+          font.bold: true
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          enabled: !root.translationLoading && !root.translationBusy
+          cursorShape: enabled ? Qt.PointingHandCursor : Qt.BusyCursor
+          onClicked: function (mouse) {
+            mouse.accepted = true
+            root.toggleTranslation()
           }
         }
       }
