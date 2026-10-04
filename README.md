@@ -1,18 +1,23 @@
-# Voxtype HUD
+# Voxtype Bubble
 
-A floating heads-up display for [Voxtype](https://voxtype.io) dictation on
-[Omarchy](https://omarchy.org) Quattro.
+A draggable, clickable dictation control for [Voxtype](https://voxtype.io) on
+[Omarchy](https://omarchy.org) Quattro — a Whisper-Flow-style bubble.
 
-It watches Voxtype's status stream and shows a small theme-aware card near the
-bottom of the screen:
+It both mirrors and drives Voxtype. Click the bubble to start recording, use
+the on-bubble button to stop, and drag it anywhere on screen — it snaps to the
+nearest edge or corner and remembers where it docked. States map to Voxtype's
+status stream:
 
 | Voxtype state  | What you see                                             |
 | -------------- | -------------------------------------------------------- |
-| `recording`    | a **live input-level waveform** driven by your microphone |
+| `idle`         | a compact sprite-avatar bubble; click it to start recording |
+| `recording`    | a **live input-level waveform** + **stop** and **cancel** buttons |
 | `transcribing` | **an animated processing indicator** (three rising dots)  |
-| `stopped`      | a brief "Fatto" flash, then the card fades out            |
+| `stopped`      | a brief confirmation flash, then back to idle             |
 
-It is read-only: it mirrors Voxtype's state and never drives it.
+Unlike a pure HUD it is bidirectional: the bubble runs
+`voxtype record start/stop`. The Hyprland push-to-talk hotkey still works
+alongside it.
 
 ## Requirements
 
@@ -31,13 +36,45 @@ omarchy-restart-shell
 
 The shell restart is required: a `keepLoaded` panel is mounted at shell start.
 
-Then adjust your Hyprland bindings so Voxtype is driven through the compositor
-(recommended by Voxtype itself):
+The activator is a Hyprland binding, not Voxtype's own evdev listener. Disable
+that listener so a bare `RIGHTCTRL` (often used as a plain modifier) never
+starts a recording, and drive Voxtype through the compositor instead —
+recommended by Voxtype itself:
 
+```toml
+# ~/.config/voxtype/config.toml
+[hotkey]
+enabled = false
 ```
-bind  = SUPER, V, exec, voxtype record start
-bindr = SUPER, V, exec, voxtype record stop
+
+```lua
+-- ~/.config/hypr/bindings.lua
+-- Push-to-talk on CTRL + MENU. Hyprland's CTRL modifier covers either Ctrl
+-- key; it cannot target only the right one.
+o.bind("CTRL + MENU", "Start dictation (push-to-talk)", "voxtype record start")
+o.bind("CTRL + MENU", "Stop dictation (push-to-talk)", "voxtype record stop", { release = true })
 ```
+
+Restart the daemon after editing the config: `systemctl --user restart voxtype`.
+Prefer a tap-to-toggle over hold-to-talk? Swap both dispatchers for
+`voxtype record toggle` on a single binding.
+
+## Controls
+
+- **Click the bubble** while idle to start recording.
+- **Click the round stop button** (or the bubble again) while recording to
+  stop and transcribe.
+- **Click the cancel button** while recording to discard it without
+  transcribing (`voxtype record cancel`).
+- **Drag the bubble** anywhere on screen. On release it **snaps to the nearest
+  screen edge or corner**. The dock is saved to
+  `~/.local/state/voxtype-hud/position` and restored at the next shell start
+  (default: bottom-right corner).
+- When idle, the bubble **slides mostly off its docked edge(s)** after a short
+  pause. Only a small **accent dot** stays on screen at the docked spot;
+  **approaching that dot slides the bubble back out**; while recording or
+  transcribing it always stays fully visible.
+- The `CTRL + MENU` push-to-talk hotkey keeps working alongside the bubble.
 
 If you already had the plugin installed, remove the old directory first so the
 clone starts clean:
@@ -54,10 +91,10 @@ omarchy-restart-shell
 omarchy plugin list --json | jq '.[] | select(.id == "io.github.ghir0.voxtype-hud")'
 ```
 
-While recording, the layer surface should be present:
+The layer surface should always be present (it hosts the bubble):
 
 ```sh
-hyprctl layers | grep voxtype-hud
+hyprctl layers | grep voxtype-bubble
 ```
 
 If the HUD does not appear, read the **live** shell log. Several Quickshell
@@ -73,16 +110,36 @@ qs log --pid "$PID" --tail 100
 
 All knobs are `readonly property` values at the top of `Panel.qml`:
 
-| Property         | Default     | Meaning                                      |
-| ---------------- | ----------- | -------------------------------------------- |
-| `doneDuration`   | `700`       | How long the "Fatto" confirmation stays (ms) |
-| `padX` / `padY`  | `16` / `11` | Card padding, horizontal / vertical          |
-| `gap`            | `11`        | Space between indicator and label            |
-| `barCount`       | `9`         | Waveform bars (≈40 ms of audio each)         |
-| `fadeDuration`   | `160`       | Card fade in/out (ms)                        |
-| `meterSmoothing` | `90`        | Waveform bar easing (ms)                     |
+| Property              | Default | Meaning                                          |
+| --------------------- | ------- | ------------------------------------------------ |
+| `snapDistance`        | `180`   | How close to an edge before docking (px)         |
+| `doneDuration`        | `700`   | How long the confirmation flash stays (ms)       |
+| `hideDelay`           | `1600`  | Pause before the idle bubble hides (ms)          |
+| `dragThreshold`       | `4`     | Pixels of movement before a click becomes a drag |
+| `cornerInset`         | `12`    | Gap between the bubble and the docked edge       |
+| `peek`                | `16`    | Pixels left visible when hidden                  |
+| `spriteSize`          | `32`    | Drawn avatar size (source frame is 32x32)        |
+| `spriteFrameDuration` | `130`   | Avatar frame duration (ms)                       |
+| `idleRow`             | `0`     | Which sprite-sheet row plays while idle          |
+| `padX`                | `14`    | Pill padding, horizontal                         |
+| `gap`                 | `12`    | Space between indicator and stop button          |
+| `barCount`            | `9`     | Waveform bars (≈40 ms of audio each)             |
+| `bubbleHeight`        | `48`    | Bubble diameter / pill height                    |
+| `stopSize`            | `28`    | Stop / cancel button diameter                    |
+| `buttonGap`           | `8`     | Space between stop and cancel                    |
+| `peekDotSize`         | `10`    | Accent dot diameter when hidden                  |
+| `fadeDuration`        | `160`   | Bubble width/fade animation (ms)                 |
+| `slideDuration`       | `280`   | Dock / hide slide animation (ms)                 |
+| `meterSmoothing`      | `90`    | Waveform bar easing (ms)                         |
 
-The card sits at `anchors.bottomMargin: Style.space(67)`.
+### Avatar sprite sheet
+
+`alien-slime.png` is a **7x3 grid of 32x32 frames** — one animation per row.
+The bundled sheet's first row is the idle bounce. To use a different sprite,
+replace the file (same layout) or point `spriteSheet` at another image and
+adjust `spriteFrameWidth` / `spriteFrameHeight` / `spriteFrameCount` /
+`idleRow`. Frames are drawn with nearest-neighbour scaling (`smooth: false`),
+so pixel art stays crisp.
 
 ### Tuning the level meter
 
@@ -109,7 +166,9 @@ The card sits at `anchors.bottomMargin: Style.space(67)`.
   is configured to record from a different device, the meter shows the default
   one instead. Set `parec --device=<source>` in `Panel.qml` to pin it.
 - It reads the microphone only while Voxtype is recording.
-- Multi-monitor placement is not handled yet — the HUD renders on one surface.
+- Multi-monitor placement is not handled yet — the bubble renders on one surface.
+- The bubble runs `voxtype record start/stop`; it needs no extra privileges
+  beyond what the compositor binding already uses.
 - Built against the Omarchy wrapper `omarchy-voxtype-status` and the documented
   `voxtype status --follow --format json` contract
   (`{"alt": ..., "class": "idle|recording|transcribing|stopped", ...}`).
