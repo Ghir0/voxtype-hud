@@ -850,7 +850,7 @@ Item {
 
         // Sprite beside the action controls while recording/transcribing.
         Image {
-          y: (parent.height - height) / 2 + Style.space(2)
+          y: (parent.height - height) / 2 - Style.space(4)
           width: root.spriteSize
           height: root.spriteSize
           source: root.spriteSheet
