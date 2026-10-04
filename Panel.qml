@@ -496,7 +496,7 @@ Item {
   // Diameter of the accent dot left on screen when the bubble is hidden.
   readonly property int peekDotSize: Style.space(10)
   readonly property int translationOrbSize: Style.space(24)
-  readonly property int translationOrbOverlap: Style.space(7)
+  readonly property int translationOrbGap: Style.space(5)
 
   // Fixed indicator width, so the pill does not shift between states.
   readonly property int indicatorWidth: Math.max(root.waveWidth, 3 * root.dotSize + 2 * root.dotSpacing)
@@ -512,7 +512,7 @@ Item {
     ? root.bubbleHeight : root.activeWidth
   readonly property bool translationOrbVisible: root.mode === "idle" || root.mode === "done"
   readonly property int bubbleWidth: root.mainBubbleWidth
-    + (root.translationOrbVisible ? root.translationOrbSize - root.translationOrbOverlap : 0)
+    + (root.translationOrbVisible ? root.translationOrbGap + root.translationOrbSize : 0)
 
   // The bubble grows from its docked edge when the state changes.
   onBubbleWidthChanged: {
@@ -681,6 +681,7 @@ Item {
         height: root.spriteSize
         source: root.spriteSheet
         smooth: false
+        mirror: root.anchorRight
         sourceClipRect: Qt.rect(
           root.avatarFrame * root.spriteFrameWidth,
           (root.translationEnabled ? 2 : root.idleRow) * root.spriteFrameHeight,
@@ -853,6 +854,7 @@ Item {
           height: root.spriteSize
           source: root.spriteSheet
           smooth: false
+          mirror: root.anchorRight
           sourceClipRect: Qt.rect(
             root.avatarFrame * root.spriteFrameWidth,
             (root.translationEnabled ? 2 : root.idleRow) * root.spriteFrameHeight,
@@ -866,7 +868,7 @@ Item {
       Item {
         id: translationOrb
         visible: root.translationOrbVisible && !root.hidden
-        x: root.mainBubbleWidth - root.translationOrbOverlap
+        x: root.mainBubbleWidth + root.translationOrbGap
         y: (root.bubbleHeight - height) / 2
         width: root.translationOrbSize
         height: root.translationOrbSize

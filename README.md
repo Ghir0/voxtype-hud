@@ -75,6 +75,7 @@ Prefer a tap-to-toggle over hold-to-talk? Swap both dispatchers for
   a recording. The button initially reflects Voxtype's current setting
   (translation is off in Voxtype's default config). With translation on, the
   animated sprite uses a different sheet row and remains beside the controls.
+  The sprite is mirrored on the right half of the screen so it faces inward.
 - **Drag the bubble** anywhere on screen. On release it **snaps to the nearest
   screen edge or corner**. The dock is saved to
   `~/.local/state/voxtype-hud/position` and restored at the next shell start
@@ -130,6 +131,7 @@ All knobs are `readonly property` values at the top of `Panel.qml`:
 | `spriteSize`          | `32`    | Drawn avatar size (source frame is 32x32)        |
 | `spriteFrameDuration` | `130`   | Avatar frame duration (ms)                       |
 | `idleRow`             | `0`     | Sprite-sheet row used when translation is off    |
+| `translationOrbGap`   | `5`     | Space between the EN satellite and main bubble   |
 | `padX`                | `14`    | Pill padding, horizontal                         |
 | `gap`                 | `12`    | Space between indicator and stop button          |
 | `barCount`            | `9`     | Waveform bars (≈40 ms of audio each)             |

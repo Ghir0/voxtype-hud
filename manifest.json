@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.ghir0.voxtype-hud",
   "name": "Voxtype Bubble",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "author": "Michael Tamanti",
   "license": "MIT",
   "description": "Pixel-sprite Voxtype dictation bubble for Omarchy with a satellite translation toggle, animated sprites, live waveform, and on-bubble recording controls.",
