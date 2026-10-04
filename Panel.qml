@@ -676,7 +676,7 @@ Item {
         id: avatarSprite
         visible: root.mode === "idle" || root.mode === "done"
         x: (root.mainBubbleWidth - width) / 2
-        y: (parent.height - height) / 2
+        y: (parent.height - height) / 2 - Style.space(2)
         width: root.spriteSize
         height: root.spriteSize
         source: root.spriteSheet
@@ -850,6 +850,7 @@ Item {
 
         // Sprite beside the action controls while recording/transcribing.
         Image {
+          y: (parent.height - height) / 2 + Style.space(2)
           width: root.spriteSize
           height: root.spriteSize
           source: root.spriteSheet
