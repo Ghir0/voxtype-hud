@@ -511,8 +511,11 @@ Item {
   readonly property int mainBubbleWidth: (root.mode === "idle" || root.mode === "done")
     ? root.bubbleHeight : root.activeWidth
   readonly property bool translationOrbVisible: root.mode === "idle" || root.mode === "done"
-  readonly property int bubbleWidth: root.mainBubbleWidth
-    + (root.translationOrbVisible ? root.translationOrbGap + root.translationOrbSize : 0)
+  readonly property int translationOrbSpace: root.translationOrbVisible
+    ? root.translationOrbGap + root.translationOrbSize : 0
+  readonly property int mainBubbleOffsetX: root.translationOrbVisible && !root.anchorRight
+    ? root.translationOrbSpace : 0
+  readonly property int bubbleWidth: root.mainBubbleWidth + root.translationOrbSpace
 
   // The bubble grows from its docked edge when the state changes.
   onBubbleWidthChanged: {
@@ -664,6 +667,7 @@ Item {
       }
 
       BorderSurface {
+        x: root.mainBubbleOffsetX
         width: root.mainBubbleWidth
         height: root.bubbleHeight
         radius: height / 2
@@ -675,7 +679,7 @@ Item {
       Image {
         id: avatarSprite
         visible: root.mode === "idle" || root.mode === "done"
-        x: (root.mainBubbleWidth - width) / 2
+        x: root.mainBubbleOffsetX + (root.mainBubbleWidth - width) / 2
         y: (parent.height - height) / 2 - Style.space(2)
         width: root.spriteSize
         height: root.spriteSize
@@ -694,7 +698,7 @@ Item {
       Row {
         visible: root.mode === "recording" || root.mode === "transcribing"
         anchors.left: parent.left
-        anchors.leftMargin: root.padX
+        anchors.leftMargin: root.padX + root.mainBubbleOffsetX
         anchors.verticalCenter: parent.verticalCenter
         spacing: root.gap
 
@@ -869,7 +873,9 @@ Item {
       Item {
         id: translationOrb
         visible: root.translationOrbVisible && !root.hidden
-        x: root.mainBubbleWidth + root.translationOrbGap
+        x: root.anchorRight
+          ? root.mainBubbleOffsetX + root.mainBubbleWidth + root.translationOrbGap
+          : 0
         y: (root.bubbleHeight - height) / 2
         width: root.translationOrbSize
         height: root.translationOrbSize

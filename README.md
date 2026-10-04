@@ -16,8 +16,8 @@ status stream:
 | `stopped`      | a brief confirmation flash, then back to idle             |
 
 Unlike a pure HUD it is bidirectional: the bubble runs
-`voxtype record start/stop`. A small satellite button toggles Voxtype's built-in
-translation mode. When enabled, Voxtype translates speech into English; the
+`voxtype record start/stop`. A small satellite button stays on the screen-edge
+side of the bubble and toggles Voxtype's built-in translation mode. When enabled, Voxtype translates speech into English; the
 source language remains whatever is configured in Voxtype. The sprite switches
 to a separate animation row and stays visible beside the recording controls.
 The Hyprland push-to-talk hotkey still works alongside it.
