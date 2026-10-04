@@ -858,7 +858,7 @@ Item {
           mirror: root.anchorRight
           sourceClipRect: Qt.rect(
             root.avatarFrame * root.spriteFrameWidth,
-            (root.translationEnabled ? 2 : root.idleRow) * root.spriteFrameHeight,
+            (root.translationEnabled ? 2 : 1) * root.spriteFrameHeight,
             root.spriteFrameWidth,
             root.spriteFrameHeight
           )
